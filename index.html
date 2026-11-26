@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock Investment Calculator – How much do I need to invest?</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@latest"></script>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--card2:#273449;--text:#e2e8f0;--muted:#94a3b8;--accent:#22c55e;--accent2:#38bdf8;--warn:#f59e0b;--bad:#ef4444;--border:#334155}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.45}
+  .wrap{max-width:1150px;margin:0 auto;padding:20px}
+  h1{margin:0 0 4px;font-size:1.7rem}
+  .sub{color:var(--muted);margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px}
+  .card h2{margin:0 0 12px;font-size:1.1rem;color:var(--accent2)}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:4px}
+  input,select{width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.95rem}
+  input:disabled{opacity:.45}
+  input[type=checkbox]{width:auto;margin-right:6px}
+  .chk{display:flex;align-items:center;padding-top:22px;color:var(--text);font-size:.9rem}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  th,td{padding:7px 6px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+  td input{padding:6px 7px;text-align:right}
+  td:first-child input{text-align:left;min-width:110px}
+  .tw{overflow-x:auto}
+  button{cursor:pointer;border:0;border-radius:8px;padding:8px 14px;font-weight:600;font-size:.9rem}
+  .btn{background:var(--accent);color:#052e16}
+  .btn2{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+  .rm{background:transparent;color:var(--bad);padding:4px 8px;font-size:1.1rem}
+  .kpis{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .kpi{background:var(--card2);border-radius:12px;padding:14px;border:1px solid var(--border)}
+  .kpi .l{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .kpi .v{font-size:1.55rem;font-weight:700;margin-top:4px}
+  .kpi .s{font-size:.8rem;color:var(--muted);margin-top:2px}
+  .big .v{color:var(--accent)}
+  .msg{padding:10px 12px;border-radius:8px;margin:8px 0;font-size:.88rem}
+  .msg.warn{background:#422006;border:1px solid var(--warn);color:#fde68a}
+  .msg.err{background:#450a0a;border:1px solid var(--bad);color:#fecaca}
+  .pos{color:var(--accent)} .neg{color:var(--bad)}
+  .two{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .note{font-size:.78rem;color:var(--muted);margin-top:8px}
+  .hl{background:rgba(34,197,94,.12)}
+  canvas{max-height:340px}
+  .foot{font-size:.76rem;color:var(--muted);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📈 Stock Investment Calculator</h1>
+  <div class="sub">How much money do you need to invest, and in how many stocks, to reach a target gain within a given time — based on the expected return of each individual stock.</div>
+
+  <div class="card">
+    <h2>1 · Your goal</h2>
+    <div class="grid">
+      <div><label>Target gain (net, after tax &amp; costs)</label><input id="target" type="number" min="0" step="100" value="10000"></div>
+      <div><label>Time horizon (years)</label><input id="years" type="number" min="0.1" step="0.5" value="5"></div>
+      <div><label>Investment style</label>
+        <select id="mode">
+          <option value="lump">One-time lump sum</option>
+          <option value="monthly">Monthly savings plan</option>
+        </select></div>
+      <div><label>Currency</label>
+        <select id="cur"><option>CHF</option><option>EUR</option><option>USD</option><option>GBP</option></select></div>
+      <div><label>Tax on gains (%)</label><input id="tax" type="number" min="0" max="100" step="0.5" value="0"></div>
+      <div><label>Trading costs (% of invested, buy + sell)</label><input id="cost" type="number" min="0" step="0.05" value="0.5"></div>
+    </div>
+    <div class="note">Tip: Germany's flat tax (Abgeltungsteuer) is 26.375 % incl. Soli. Set tax to 0 if you want the gross gain as target.</div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Your stocks (individual expected performance)</h2>
+    <div class="grid" style="margin-bottom:12px">
+      <div><label>How to split the money</label>
+        <select id="alloc">
+          <option value="manual">Manual weights (my own %)</option>
+          <option value="equal">Equal amount in each stock</option>
+          <option value="equalgain">Equal gain contribution per stock</option>
+        </select></div>
+      <div class="chk" id="fracWrap"><input type="checkbox" id="frac"><label for="frac" style="margin:0;color:var(--text)">Allow fractional shares</label></div>
+    </div>
+    <div class="tw">
+    <table id="stockTable">
+      <thead><tr>
+        <th>Stock</th><th>Share price</th><th>Expected return p.a. (%)</th><th>Weight (input)</th><th>Weight used</th><th></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn2" id="addStock">+ Add stock</button>
+      <button class="btn2" id="resetBtn">Reset example</button>
+    </div>
+    <div class="note">Expected return p.a. is <b>your assumption</b> (e.g. long-term average or analyst forecast) — use realistic, conservative values. Negative returns are allowed.</div>
+  </div>
+
+  <div id="messages"></div>
+
+  <div class="card" id="results">
+    <h2>3 · Result</h2>
+    <div class="kpis" id="kpis"></div>
+  </div>
+
+  <div class="card">
+    <h2>Allocation per stock</h2>
+    <div class="tw"><table id="resTable"><thead></thead><tbody></tbody></table></div>
+    <div class="note" id="resNote"></div>
+  </div>
+
+  <div class="card">
+    <h2>Growth over time</h2>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>What if returns differ from my assumption?</h2>
+      <div class="tw"><table id="scenTable"><thead></thead><tbody></tbody></table></div>
+      <div class="note">All stock returns shifted by the same number of percentage points.</div>
+    </div>
+    <div class="card">
+      <h2>What if I take more or less time?</h2>
+      <div class="tw"><table id="timeTable"><thead></thead><tbody></tbody></table></div>
+      <div class="note">Same target and stocks, different horizon.</div>
+    </div>
+  </div>
+
+  <div class="foot">⚠️ Educational tool, not investment advice. Stock returns are uncertain and can be negative; the calculation assumes constant annual returns, no dividends/withholding tax differences, no currency effects, and that the target is reached exactly as expected. Diversification (more stocks) reduces single-stock risk but does not guarantee the result.</div>
+</div>
+
+<script>
+const DEFAULT_STOCKS = [
+  {name:"Stock A", price:120, ret:8,  weight:25},
+  {name:"Stock B", price:45,  ret:12, weight:25},
+  {name:"Stock C", price:310, ret:6,  weight:25},
+  {name:"Stock D", price:18,  ret:15, weight:25},
+];
+let stocks = JSON.parse(JSON.stringify(DEFAULT_STOCKS));
+try{ const s=localStorage.getItem("sic_stocks"); if(s){const p=JSON.parse(s); if(Array.isArray(p)&&p.length) stocks=p;} }catch(e){}
+
+const $ = id => document.getElementById(id);
+let chart;
+
+function fmt(v,d=0){ const c=$("cur").value; try{return new Intl.NumberFormat("de-CH",{style:"currency",currency:c,minimumFractionDigits:d,maximumFractionDigits:d}).format(v);}catch(e){return v.toFixed(d)+" "+c;} }
+function pct(v,d=2){ return v.toFixed(d).replace(/\.?0+$/,m=>m.includes('.')?'':m) + " %"; }
+function num(v,d=0){ return new Intl.NumberFormat("de-CH",{maximumFractionDigits:d}).format(v); }
+
+function params(){
+  return {
+    target:+$("target").value||0,
+    years:Math.max(0.1,+$("years").value||0.1),
+    mode:$("mode").value,
+    tax:Math.min(100,Math.max(0,+$("tax").value||0))/100,
+    cost:Math.max(0,+$("cost").value||0)/100,
+    alloc:$("alloc").value,
+    frac:$("frac").checked
+  };
+}
+
+/* gain factor per 1 unit of money (lump) or per 1 unit of monthly contribution (savings plan), before tax/costs */
+function gainFactor(r, years, mode){
+  r = Math.max(r, -0.9999);
+  if(mode==="lump") return Math.pow(1+r, years) - 1;
+  const n = Math.max(1, Math.round(years*12));
+  const m = Math.pow(1+r, 1/12) - 1;
+  const fv = Math.abs(m)<1e-12 ? n : (Math.pow(1+m, n) - 1)/m;
+  return fv - n;
+}
+
+function weights(p, years, shift){
+  const n = stocks.length;
+  if(!n) return [];
+  if(p.alloc==="equal") return stocks.map(()=>1/n);
+  if(p.alloc==="equalgain"){
+    const inv = stocks.map(s=>{const g=gainFactor(s.ret/100+shift,years,p.mode); return g>0?1/g:0;});
+    const sum = inv.reduce((a,b)=>a+b,0);
+    return sum>0 ? inv.map(x=>x/sum) : stocks.map(()=>1/n);
+  }
+  const sum = stocks.reduce((a,s)=>a+(+s.weight||0),0);
+  return sum>0 ? stocks.map(s=>(+s.weight||0)/sum) : stocks.map(()=>1/n);
+}
+
+/* required amount: lump sum total, or monthly contribution */
+function solve(p, years, shift){
+  if(!stocks.length) return null;
+  const w = weights(p, years, shift);
+  const G = stocks.reduce((a,s,i)=>a + w[i]*gainFactor(s.ret/100+shift, years, p.mode), 0);
+  const n = Math.max(1, Math.round(years*12));
+  const denom = p.mode==="lump" ? G*(1-p.tax) - p.cost : G*(1-p.tax) - p.cost*n;
+  return denom>0 ? p.target/denom : null;
+}
+
+function renderStocks(){
+  const p = params();
+  const w = weights(p, p.years, 0);
+  const tb = $("stockTable").querySelector("tbody");
+  tb.innerHTML = "";
+  stocks.forEach((s,i)=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input value="${s.name}" data-i="${i}" data-k="name"></td>
+      <td><input type="number" min="0.01" step="0.01" value="${s.price}" data-i="${i}" data-k="price"></td>
+      <td><input type="number" step="0.5" value="${s.ret}" data-i="${i}" data-k="ret"></td>
+      <td><input type="number" min="0" step="1" value="${s.weight}" data-i="${i}" data-k="weight" ${p.alloc!=="manual"?"disabled":""}></td>
+      <td id="wu${i}">${(w[i]*100).toFixed(1)} %</td>
+      <td><button class="rm" data-rm="${i}" title="Remove">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll("input").forEach(inp=>{
+    inp.addEventListener("input",e=>{
+      const i=+e.target.dataset.i,k=e.target.dataset.k;
+      stocks[i][k] = k==="name" ? e.target.value : +e.target.value;
+      save(); updateWeightCells(); calc();
+    });
+  });
+  tb.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",e=>{
+    stocks.splice(+e.target.dataset.rm,1); save(); renderStocks(); calc();
+  }));
+}
+function updateWeightCells(){
+  const w = weights(params(), params().years, 0);
+  stocks.forEach((s,i)=>{const c=$("wu"+i); if(c) c.textContent=(w[i]*100).toFixed(1)+" %";});
+}
+function save(){ try{localStorage.setItem("sic_stocks",JSON.stringify(stocks));}catch(e){} }
+
+function calc(){
+  const p = params();
+  const msgs = $("messages"); msgs.innerHTML="";
+  const addMsg=(t,c)=>{const d=document.createElement("div");d.className="msg "+c;d.innerHTML=t;msgs.appendChild(d);};
+  $("fracWrap").style.display = p.mode==="lump" ? "flex":"none";
+
+  if(!stocks.length){ addMsg("Add at least one stock.","err"); $("kpis").innerHTML=""; return; }
+  const w = weights(p, p.years, 0);
+  const n = Math.max(1, Math.round(p.years*12));
+
+  stocks.forEach((s,i)=>{
+    if(w[i]>0 && s.ret<=0) addMsg(`<b>${s.name}</b> has an expected return ≤ 0 % and reduces your overall gain. Consider removing it or setting its weight to 0.`,"warn");
+  });
+
+  const req = solve(p, p.years, 0);
+  if(req===null){
+    addMsg("🚫 With these returns, tax and costs the target can <b>never</b> be reached (expected net gain is ≤ 0 per invested unit). Increase expected returns, shift weight to better stocks, or lower costs.","err");
+    $("kpis").innerHTML=""; $("resTable").querySelector("tbody").innerHTML=""; $("resTable").querySelector("thead").innerHTML="";
+    return;
+  }
+
+  /* per-stock results */
+  let rows=[], totalInvested=0, totalGross=0, finalValue=0;
+  const monthlyAmt = req;
+  stocks.forEach((s,i)=>{
+    const r = Math.max(s.ret/100,-0.9999);
+    let amount, shares, invested, gross, value, perMonth;
+    if(p.mode==="lump"){
+      amount = req*w[i];
+      shares = p.frac ? amount/s.price : Math.floor(amount/s.price);
+      invested = shares*s.price;
+      value = invested*Math.pow(1+r,p.years);
+      gross = value - invested;
+    } else {
+      perMonth = monthlyAmt*w[i];
+      shares = perMonth/s.price;              // shares per month
+      invested = perMonth*n;
+      const g = gainFactor(r,p.years,"monthly");
+      gross = perMonth*g;
+      value = invested+gross;
+      amount = perMonth;
+    }
+    rows.push({s,w:w[i],amount,shares,invested,gross,value,r});
+    totalInvested+=invested; totalGross+=gross; finalValue+=value;
+  });
+
+  const costs = totalInvested*p.cost;
+  const taxAmt = Math.max(0,totalGross)*p.tax;
+  const net = totalGross - taxAmt - costs;
+  const blended = totalInvested>0 ? (p.mode==="lump" ? Math.pow(finalValue/totalInvested,1/p.years)-1 : null) : 0;
+  const active = rows.filter(r=>r.invested>0).length;
+
+  if(p.mode==="lump" && !p.frac){
+    rows.forEach(r=>{ if(r.w>0 && r.shares===0) addMsg(`<b>${r.s.name}</b>: allocation (${fmt(r.amount)}) is below one share price (${fmt(r.s.price,2)}) → 0 shares bought. Enable fractional shares or invest more.`,"warn"); });
+    if(Math.abs(net-p.target)/Math.max(1,p.target)>0.005)
+      addMsg(`Because only whole shares can be bought, the realistic net gain is <b>${fmt(net)}</b> instead of ${fmt(p.target)}. Enable "fractional shares" for an exact match.`,"warn");
+  }
+
+  /* KPIs */
+  let k="";
+  if(p.mode==="lump"){
+    k+=kpi("big","Required investment (one-time)",fmt(totalInvested),`across ${active} stock${active!==1?"s":""}`);
+  } else {
+    k+=kpi("big","Required monthly savings",fmt(monthlyAmt),`for ${n} months · total paid in ${fmt(totalInvested)}`);
+  }
+  k+=kpi("","Number of stocks",`${active}`,`of ${stocks.length} listed`);
+  k+=kpi("","Gross gain (before tax &amp; costs)",fmt(totalGross),`final value ${fmt(finalValue)}`);
+  k+=kpi("",`Net gain after ${(p.tax*100).toFixed(1)}% tax &amp; ${(p.cost*100).toFixed(2)}% costs`,`<span class="${net>=0?"pos":"neg"}">${fmt(net)}</span>`,`target ${fmt(p.target)} · tax ${fmt(taxAmt)} · costs ${fmt(costs)}`);
+  if(blended!==null) k+=kpi("","Blended return p.a.",pct(blended*100),"weighted by invested amount");
+  k+=kpi("","Money multiple (gross)",totalInvested>0?(finalValue/totalInvested).toFixed(2)+"×":"–","final value ÷ invested");
+  $("kpis").innerHTML=k;
+
+  /* table */
+  const th = $("resTable").querySelector("thead"), tb=$("resTable").querySelector("tbody");
+  if(p.mode==="lump"){
+    th.innerHTML=`<tr><th>Stock</th><th>Weight</th><th>Return p.a.</th><th>Share price</th><th>Shares to buy</th><th>Invested</th><th>Value at end</th><th>Gross gain</th></tr>`;
+    tb.innerHTML=rows.map(r=>`<tr><td>${r.s.name}</td><td>${(r.w*100).toFixed(1)} %</td><td>${(r.s.ret).toFixed(1)} %</td><td>${fmt(r.s.price,2)}</td><td><b>${p.frac?num(r.shares,3):num(r.shares)}</b></td><td>${fmt(r.invested)}</td><td>${fmt(r.value)}</td><td class="${r.gross>=0?"pos":"neg"}">${fmt(r.gross)}</td></tr>`).join("")
+     +`<tr class="hl"><td><b>Total</b></td><td>100 %</td><td></td><td></td><td></td><td><b>${fmt(totalInvested)}</b></td><td><b>${fmt(finalValue)}</b></td><td><b>${fmt(totalGross)}</b></td></tr>`;
+    $("resNote").textContent = p.frac ? "Fractional shares assumed (broker/savings-plan support required)." : "Whole shares only: leftover cash that can't buy a full share is not invested and not counted.";
+  } else {
+    th.innerHTML=`<tr><th>Stock</th><th>Weight</th><th>Return p.a.</th><th>Share price</th><th>Monthly amount</th><th>Shares / month</th><th>Total invested</th><th>Value at end</th><th>Gross gain</th></tr>`;
+    tb.innerHTML=rows.map(r=>`<tr><td>${r.s.name}</td><td>${(r.w*100).toFixed(1)} %</td><td>${(r.s.ret).toFixed(1)} %</td><td>${fmt(r.s.price,2)}</td><td><b>${fmt(r.amount,2)}</b></td><td>${num(r.shares,3)}</td><td>${fmt(r.invested)}</td><td>${fmt(r.value)}</td><td class="${r.gross>=0?"pos":"neg"}">${fmt(r.gross)}</td></tr>`).join("")
+     +`<tr class="hl"><td><b>Total</b></td><td>100 %</td><td></td><td></td><td><b>${fmt(monthlyAmt,2)}</b></td><td></td><td><b>${fmt(totalInvested)}</b></td><td><b>${fmt(finalValue)}</b></td><td><b>${fmt(totalGross)}</b></td></tr>`;
+    $("resNote").textContent = "Contributions at the end of each month; monthly growth rate derived from each stock's annual return. Share counts per month are fractional (savings-plan style).";
+  }
+
+  drawChart(p, rows, n);
+  scenarios(p);
+  timeTable(p);
+}
+
+function kpi(cls,l,v,s){ return `<div class="kpi ${cls}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`; }
+
+function drawChart(p, rows, n){
+  const labels=[], val=[], inv=[];
+  for(let k=0;k<=n;k++){
+    labels.push((k/12).toFixed(2));
+    let v=0, iv=0;
+    rows.forEach(r=>{
+      if(p.mode==="lump"){ v+=r.invested*Math.pow(1+r.r,k/12); iv+=r.invested; }
+      else{
+        const m=Math.pow(1+r.r,1/12)-1;
+        const fv = Math.abs(m)<1e-12 ? k : (Math.pow(1+m,k)-1)/m;
+        v+=r.amount*fv; iv+=r.amount*k;
+      }
+    });
+    val.push(v); inv.push(iv);
+  }
+  const step=Math.max(1,Math.floor(n/60));
+  const idx=labels.map((_,i)=>i).filter(i=>i%step===0||i===n);
+  const data={labels:idx.map(i=>labels[i]),datasets:[
+    {label:"Portfolio value (gross)",data:idx.map(i=>val[i]),borderColor:"#22c55e",backgroundColor:"rgba(34,197,94,.15)",fill:true,tension:.2,pointRadius:0,borderWidth:2.5},
+    {label:"Money invested",data:idx.map(i=>inv[i]),borderColor:"#38bdf8",borderDash:[6,4],pointRadius:0,borderWidth:2,fill:false}
+  ]};
+  const opts={responsive:true,interaction:{mode:"index",intersect:false},
+    scales:{x:{title:{display:true,text:"Years",color:"#94a3b8"},ticks:{color:"#94a3b8",maxTicksLimit:12},grid:{color:"#334155"}},
+            y:{ticks:{color:"#94a3b8",callback:v=>fmt(v)},grid:{color:"#334155"}}},
+    plugins:{legend:{labels:{color:"#e2e8f0"}},tooltip:{callbacks:{label:c=>c.dataset.label+": "+fmt(c.parsed.y)}}}};
+  if(chart){chart.data=data;chart.options=opts;chart.update();}
+  else chart=new Chart($("chart"),{type:"line",data,options:opts});
+}
+
+function scenarios(p){
+  const shifts=[-0.04,-0.02,0,0.02,0.04];
+  const label = p.mode==="lump" ? "Required one-time investment" : "Required monthly savings";
+  $("scenTable").querySelector("thead").innerHTML=`<tr><th>Return change</th><th>${label}</th><th>vs. base</th></tr>`;
+  const base=solve(p,p.years,0);
+  $("scenTable").querySelector("tbody").innerHTML=shifts.map(sh=>{
+    const v=solve(p,p.years,sh);
+    const diff = (v!==null&&base)? ((v/base-1)*100) : null;
+    return `<tr class="${sh===0?"hl":""}"><td>${sh>0?"+":""}${(sh*100).toFixed(0)} pp</td><td>${v===null?"not reachable":fmt(v, p.mode==="lump"?0:2)}</td><td>${diff===null?"–":(diff>0?"+":"")+diff.toFixed(0)+" %"}</td></tr>`;
+  }).join("");
+}
+
+function timeTable(p){
+  const list=[1,2,3,5,7,10,15,20]; if(!list.includes(p.years)) list.push(p.years); list.sort((a,b)=>a-b);
+  const label = p.mode==="lump" ? "Required one-time investment" : "Required monthly savings";
+  $("timeTable").querySelector("thead").innerHTML=`<tr><th>Years</th><th>${label}</th>${p.mode==="monthly"?"<th>Total paid in</th>":""}</tr>`;
+  $("timeTable").querySelector("tbody").innerHTML=list.map(y=>{
+    const v=solve(p,y,0); const n=Math.max(1,Math.round(y*12));
+    return `<tr class="${y===p.years?"hl":""}"><td>${y}</td><td>${v===null?"not reachable":fmt(v,p.mode==="lump"?0:2)}</td>${p.mode==="monthly"?`<td>${v===null?"–":fmt(v*n)}</td>`:""}</tr>`;
+  }).join("");
+}
+
+/* events */
+["target","years","mode","cur","tax","cost","frac"].forEach(id=>$(id).addEventListener("input",()=>{updateWeightCells();calc();}));
+$("alloc").addEventListener("input",()=>{renderStocks();calc();});
+$("addStock").addEventListener("click",()=>{stocks.push({name:"Stock "+String.fromCharCode(65+stocks.length%26),price:100,ret:8,weight:10});save();renderStocks();calc();});
+$("resetBtn").addEventListener("click",()=>{stocks=JSON.parse(JSON.stringify(DEFAULT_STOCKS));save();renderStocks();calc();});
+
+renderStocks(); calc();
+</script>
+</body>
+</html>
